@@ -690,6 +690,7 @@ textarea.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;m
     <p class="hint" id="dbsrc">Memuat daftar guru…</p>
     <button type="button" class="ghost sm" id="reloadSrc">Muat ulang data guru</button>
     <input id="kepsek" type="hidden"><input id="sekolah" type="hidden"><input id="tempat" type="hidden"><input id="tglrpp" type="hidden">
+    <label for="sekolahpilih">Sekolah</label><select id="sekolahpilih"><option value="">Memuat daftar sekolah…</option></select>
     <p class="hint" id="schoolinfo">Memuat data sekolah…</p>
     <div class="row">
       <div><label for="mapel">Mata pelajaran</label><input id="mapel" required list="mapellist" placeholder="mis. IPAS"><datalist id="mapellist"></datalist></div>
@@ -930,16 +931,18 @@ textarea.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;m
 
     <section data-pane="ks" hidden>
       <h3>Data sekolah</h3>
-      <p class="hint">Nama kepala sekolah dan satuan pendidikan diatur di sini dan dipakai otomatis untuk semua guru.</p>
+      <p class="hint">Tambahkan sebanyak mungkin sekolah. Setiap sekolah berpasangan dengan kepala sekolah, tempat/tanggal RPP, dan tanda tangannya sendiri. Guru memilih sekolahnya di halaman utama.</p>
+      <label for="a_pilih">Sekolah</label><select id="a_pilih"></select>
+      <div class="btns"><button type="button" class="ghost" id="a_schnew">+ Tambah sekolah baru</button><button type="button" class="ghost" id="a_schdel">Hapus sekolah ini</button></div>
       <label for="a_kepsek">Nama kepala sekolah</label><input id="a_kepsek">
       <label for="a_sekolah">Satuan pendidikan</label><input id="a_sekolah">
       <label for="a_tempat">Tempat penulisan RPP (kota)</label><input id="a_tempat" placeholder="contoh: Banyumas">
       <label for="a_tglrpp">Tanggal RPP</label><input id="a_tglrpp" type="date">
       <p class="hint">Tempat dan tanggal ini dicetak di atas kolom tanda tangan guru pada dokumen RPP semua guru. Kosongkan bila ingin tetap diisi manual.</p>
-      <div class="btns"><button type="button" id="a_schsave">Simpan data sekolah</button></div>
+      <div class="btns"><button type="button" id="a_schsave">Simpan sekolah</button></div>
       <p class="hint" id="a_schmsg"></p>
       <h3>Tanda tangan kepala sekolah</h3>
-      <p class="hint">Tanda tangan kepala sekolah diunggah di sini dan otomatis dipakai di dokumen semua guru. Gunakan PNG berlatar transparan atau foto tanda tangan di kertas putih.</p>
+      <p class="hint">Tanda tangan diunggah untuk sekolah yang sedang dipilih di atas dan otomatis dipakai di dokumen guru sekolah itu. Gunakan PNG berlatar transparan atau foto tanda tangan di kertas putih.</p>
       <label for="sigk">Gambar tanda tangan kepala sekolah</label>
       <input id="sigk" type="file" accept="image/png,image/jpeg,image/webp">
       <div id="a_ksprev" style="margin:12px 0;min-height:72px"></div>
@@ -1989,7 +1992,7 @@ function admTab(n){
   document.querySelectorAll('#adm [data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===n)));
   document.querySelectorAll('#adm [data-pane]').forEach(p=>p.hidden=p.dataset.pane!==n);
   if(n==='guru') agLoad();
-  if(n==='ks'){ loadSekolah(); loadSigKepsek(); }
+  if(n==='ks'){ loadSekolah(); }
 }
 document.querySelectorAll('#adm [data-tab]').forEach(b=>b.addEventListener('click',()=>admTab(b.dataset.tab)));
 
@@ -2133,7 +2136,9 @@ $('guru').addEventListener('input',()=>{ const n=$('guru').value.trim().toLowerC
 const BUCKET='tanda-tangan';
 const stBase=()=>SB_DST.url.replace(/\/rest\/v1$/,'')+'/storage/v1';
 const slug=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-const sigPath=i=>i===0?'kepsek.png':'guru/'+slug($('guru').value)+'.png';
+let SEKOLAH=[], SEK_CUR='', SEK_NEW=false;
+const ksPath=id=>{ const o=SEKOLAH.find(x=>x.id===id); return (o&&o.legacy)?'kepsek.png':'kepsek/'+(id||'x')+'.png'; };
+const sigPath=i=>i===0?ksPath(SEK_CUR):'guru/'+slug($('guru').value)+'.png';
 function tblErr(e,t){ return /Tabel tidak ditemukan/.test(why(e))?'Tabel '+t+' belum ada. Hubungi pengembang untuk menyiapkannya.':why(e); }
 function stErr(e){
   const m=String(e&&e.message||e);
@@ -2164,6 +2169,7 @@ async function saveSigStorage(i){
   const who=i===0?'kepala sekolah':'guru';
   if(!sigImg[i]){ sigMsg(i,'Pilih gambar tanda tangan '+who+' dulu.',true); return; }
   if(i===1&&!slug($('guru').value)){ sigMsg(i,'Isi nama guru dulu.',true); return; }
+  if(i===0&&(SEK_NEW||!SEK_CUR)){ sigMsg(i,'Simpan data sekolah ini dulu, baru unggah tanda tangan.',true); return; }
   sigMsg(i,'Mengunggah…');
   try{
     const blob=await (await fetch(sigImg[i])).blob();
@@ -2174,6 +2180,7 @@ async function saveSigStorage(i){
 async function delSigStorage(i){
   const who=i===0?'kepala sekolah':'guru';
   if(i===1&&!slug($('guru').value)){ sigMsg(i,'Isi nama guru dulu.',true); return; }
+  if(i===0&&(SEK_NEW||!SEK_CUR)){ sigMsg(i,'Pilih sekolah yang sudah tersimpan dulu.',true); return; }
   if(!confirm('Hapus tanda tangan '+who+' yang tersimpan di storage?')) return;
   try{
     await stReq('DELETE',`/object/${BUCKET}/${sigPath(i)}`);
@@ -2207,7 +2214,7 @@ function showSchool(){
   const k=$('kepsek').value.trim(), sc=$('sekolah').value.trim();
   $('schoolinfo').className='hint'+((k&&sc)?'':' err');
   $('schoolinfo').textContent=(k&&sc)?`Satuan pendidikan: ${sc}. Kepala sekolah: ${k}. (Diatur oleh admin.)`:'Nama kepala sekolah dan satuan pendidikan belum diatur admin.';
-  if(document.activeElement!==$('a_kepsek')&&document.activeElement!==$('a_sekolah')&&document.activeElement!==$('a_tempat')&&document.activeElement!==$('a_tglrpp')){ $('a_kepsek').value=k; $('a_sekolah').value=sc; $('a_tempat').value=$('tempat').value; $('a_tglrpp').value=$('tglrpp').value; }
+  if(!SEK_NEW&&document.activeElement!==$('a_kepsek')&&document.activeElement!==$('a_sekolah')&&document.activeElement!==$('a_tempat')&&document.activeElement!==$('a_tglrpp')){ $('a_kepsek').value=k; $('a_sekolah').value=sc; $('a_tempat').value=$('tempat').value; $('a_tglrpp').value=$('tglrpp').value; }
   applySchoolToDoc();
 }
 /* perbarui nama kepala sekolah / satuan pendidikan pada dokumen yang sedang tampil */
@@ -2233,14 +2240,9 @@ function applySchoolToDoc(){
 async function reloadKepsek(){
   const b=$('kepsekreload'); b.disabled=true; setStatus('Memuat data kepala sekolah…');
   try{
-    const r=await sb(SB_DST,'/pengaturan_rpm?kunci=eq.sekolah&select=nilai&limit=1');
-    const n=r&&r[0]&&r[0].nilai;
-    if(!n||!n.kepsek) throw new Error('Data kepala sekolah belum diatur admin.');
     const lama=$('kepsek').value.trim();
-    $('kepsek').value=n.kepsek; if(n.sekolah) $('sekolah').value=n.sekolah;
-    $('tempat').value=n.tempat||''; $('tglrpp').value=n.tanggal||'';
-    showSchool();
-    sigImg[0]=null; sigStored[0]=false; await loadSigKepsek(); applySigs();
+    await loadSekolah(true);
+    if(!SEKOLAH.length) throw new Error('Data kepala sekolah belum diatur admin.');
     const baru=$('kepsek').value.trim();
     setStatus(lama===baru ? 'Data terbaru dimuat. Kepala sekolah: '+baru+' — tidak berubah.' : 'Kepala sekolah diperbarui: '+baru+' — tekan Simpan ke database bila ingin menyimpan perubahan ini.');
   }catch(e){ setStatus('Gagal memuat data kepala sekolah: '+why(e),true); }
@@ -2261,25 +2263,86 @@ $('kepsekreload').addEventListener('click',reloadKepsek);
   modal.addEventListener('mousedown',e=>{ if(e.target===modal) close(); });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!modal.hidden) close(); });
 })();
-async function loadSekolah(){
-  try{
-    const r=await sb(SB_DST,'/pengaturan_rpm?kunci=eq.sekolah&select=nilai&limit=1');
-    const n=r&&r[0]&&r[0].nilai;
-    if(n){ $('kepsek').value=n.kepsek||''; $('sekolah').value=n.sekolah||''; $('tempat').value=n.tempat||''; $('tglrpp').value=n.tanggal||''; }
-  }catch(e){}
+function isiSelectSekolah(){
+  const opt=SEKOLAH.map(o=>`<option value="${esc(o.id)}">${esc(o.nama||o.id)}</option>`).join('');
+  $('sekolahpilih').innerHTML=opt||'<option value="">Belum ada sekolah (diatur admin)</option>';
+  $('sekolahpilih').value=SEK_CUR;
+  $('a_pilih').innerHTML=(SEK_NEW?'<option value="__baru">(sekolah baru — belum disimpan)</option>':'')+opt;
+  $('a_pilih').value=SEK_NEW?'__baru':SEK_CUR;
+}
+function pilihSekolah(id){
+  const o=SEKOLAH.find(x=>x.id===id)||SEKOLAH[0];
+  SEK_NEW=false;
+  if(o){ SEK_CUR=o.id; $('kepsek').value=o.kepsek||''; $('sekolah').value=o.nama||''; $('tempat').value=o.tempat||''; $('tglrpp').value=o.tanggal||''; try{ localStorage.setItem('rpm_sekolah',o.id); }catch(e){} }
+  else { SEK_CUR=''; ['kepsek','sekolah','tempat','tglrpp'].forEach(k=>{ $(k).value=''; }); }
+  isiSelectSekolah();
+  sigImg[0]=null; sigStored[0]=false;
   showSchool();
+  loadSigKepsek();
+}
+async function loadSekolah(strict){
+  try{
+    const r=await sb(SB_DST,'/pengaturan_rpm?kunci=in.(sekolah,daftar_sekolah)&select=kunci,nilai');
+    const m={}; (r||[]).forEach(x=>{ m[x.kunci]=x.nilai; });
+    const dl=m.daftar_sekolah&&m.daftar_sekolah.items;
+    if(Array.isArray(dl)&&dl.length) SEKOLAH=dl;
+    else if(m.sekolah&&(m.sekolah.kepsek||m.sekolah.sekolah)) SEKOLAH=[{id:'utama',legacy:true,nama:m.sekolah.sekolah||'',kepsek:m.sekolah.kepsek||'',tempat:m.sekolah.tempat||'',tanggal:m.sekolah.tanggal||''}];
+    else SEKOLAH=[];
+  }catch(e){ if(strict) throw e; }
+  let want=SEK_CUR; if(!want){ try{ want=localStorage.getItem('rpm_sekolah')||''; }catch(e){} }
+  pilihSekolah(want);
+}
+async function simpanDaftarSekolah(list){
+  const f=list[0];
+  await sb(SB_DST,'/pengaturan_rpm?on_conflict=kunci',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:[
+    {kunci:'daftar_sekolah',nilai:{items:list},updated_at:new Date().toISOString()},
+    {kunci:'sekolah',nilai:{kepsek:f.kepsek,sekolah:f.nama,tempat:f.tempat||'',tanggal:f.tanggal||''},updated_at:new Date().toISOString()}   // kompatibilitas: sekolah pertama
+  ]});
 }
 async function saveSekolah(){
-  const kepsek=$('a_kepsek').value.trim(), sekolah=$('a_sekolah').value.trim(), tempat=$('a_tempat').value.trim(), tanggal=$('a_tglrpp').value.trim();
-  if(!kepsek||!sekolah){ msg('a_schmsg','Nama kepala sekolah dan satuan pendidikan wajib diisi.',true); return; }
+  const kepsek=$('a_kepsek').value.trim(), nama=$('a_sekolah').value.trim(), tempat=$('a_tempat').value.trim(), tanggal=$('a_tglrpp').value.trim();
+  if(!kepsek||!nama){ msg('a_schmsg','Nama kepala sekolah dan satuan pendidikan wajib diisi.',true); return; }
+  const list=SEKOLAH.map(x=>Object.assign({},x));
+  let item;
+  if(SEK_NEW||!SEK_CUR){
+    let id=slug(nama)||('s'+Date.now()); while(list.some(x=>x.id===id)) id+='-2';
+    item={id,nama,kepsek,tempat,tanggal}; list.push(item);
+  } else {
+    item=list.find(x=>x.id===SEK_CUR);
+    if(!item){ msg('a_schmsg','Sekolah tidak ditemukan. Muat ulang halaman.',true); return; }
+    Object.assign(item,{nama,kepsek,tempat,tanggal});
+  }
+  if(list.some(x=>x!==item&&x.nama.trim().toLowerCase()===nama.toLowerCase())){ msg('a_schmsg','Sekolah dengan nama itu sudah ada.',true); return; }
   const b=$('a_schsave'); b.disabled=true; msg('a_schmsg','Menyimpan…');
   try{
-    await sb(SB_DST,'/pengaturan_rpm?on_conflict=kunci',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:{kunci:'sekolah',nilai:{kepsek,sekolah,tempat,tanggal},updated_at:new Date().toISOString()}});
-    $('kepsek').value=kepsek; $('sekolah').value=sekolah; $('tempat').value=tempat; $('tglrpp').value=tanggal; showSchool();
-    msg('a_schmsg','Data sekolah dan tanggal RPP tersimpan, berlaku untuk semua guru.');
+    await simpanDaftarSekolah(list);
+    const baru=SEK_NEW||!SEK_CUR; SEKOLAH=list; SEK_NEW=false; pilihSekolah(item.id);
+    msg('a_schmsg',baru?'Sekolah baru tersimpan. Unggah tanda tangan kepala sekolahnya di bawah.':'Data sekolah tersimpan, berlaku untuk semua guru sekolah ini.');
   }catch(e){ msg('a_schmsg','Gagal menyimpan: '+tblErr(e,'pengaturan_rpm'),true); }
   finally{ b.disabled=false; }
 }
+function tambahSekolah(){
+  SEK_NEW=true; ['a_kepsek','a_sekolah','a_tempat','a_tglrpp'].forEach(k=>{ $(k).value=''; });
+  sigImg[0]=null; sigStored[0]=false; applySigs(); isiSelectSekolah();
+  msg('a_schmsg','Isi data sekolah baru lalu tekan "Simpan sekolah".'); $('a_sekolah').focus();
+}
+async function hapusSekolah(){
+  if(SEK_NEW){ pilihSekolah(SEK_CUR); msg('a_schmsg','Penambahan sekolah dibatalkan.'); return; }
+  const o=SEKOLAH.find(x=>x.id===SEK_CUR); if(!o) return;
+  if(SEKOLAH.length<2){ msg('a_schmsg','Minimal harus ada satu sekolah.',true); return; }
+  if(!confirm('Hapus sekolah "'+o.nama+'"? Dokumen yang sudah tersimpan tidak berubah.')) return;
+  const list=SEKOLAH.filter(x=>x.id!==o.id);
+  try{
+    await simpanDaftarSekolah(list);
+    try{ await stReq('DELETE',`/object/${BUCKET}/${ksPath(o.id)}`); }catch(e){}
+    SEKOLAH=list; SEK_CUR=''; pilihSekolah('');
+    msg('a_schmsg','Sekolah "'+o.nama+'" dihapus.');
+  }catch(e){ msg('a_schmsg','Gagal menghapus: '+tblErr(e,'pengaturan_rpm'),true); }
+}
+$('sekolahpilih').addEventListener('change',e=>pilihSekolah(e.target.value));
+$('a_pilih').addEventListener('change',e=>{ if(e.target.value!=='__baru') pilihSekolah(e.target.value); });
+$('a_schnew').addEventListener('click',tambahSekolah);
+$('a_schdel').addEventListener('click',hapusSekolah);
 $('a_schsave').addEventListener('click',saveSekolah);
 async function loadKertas(){
   try{
@@ -2359,7 +2422,7 @@ $('saveKertas').addEventListener('click',saveKertas);
   ul.addEventListener('click',e=>{ const li=e.target.closest('li[data-i]'); if(li) choose(+li.dataset.i); });
 })();
 
-loadKertas(); loadSigKepsek(); loadSekolah();
+loadKertas(); loadSekolah();
 loadSource();
 </script>
 </body>
