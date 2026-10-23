@@ -1043,7 +1043,7 @@ Tiga bullet berlabel tebal: **Berkesadaran:**, **Bermakna:**, **Menggembirakan:*
 ## Langkah-Langkah Kegiatan Pembelajaran
 Satu paragraf miring (diapit tanda bintang) yang menjelaskan bahwa setiap tahap pembelajaran dipetakan ke pengalaman belajar Memahami – Mengaplikasi – Merefleksi, dan bahwa kode LKPD merujuk pada LKPD 1, LKPD 2, dan seterusnya.
 Untuk setiap pertemuan tulis sub-judul dengan format persis: ### 1. Pertemuan 1 (x JP = y menit): fokus pertemuan (ganti angka sesuai pertemuan). Di bawahnya tulis berurutan: #### Pendahuluan, beberapa tahap inti yang mengikuti sintaks praktik pedagogis yang dipilih (tiap tahap satu sub-judul tingkat 4, nama tahap sesuai sintaks tersebut), dan #### Penutup.
-Tepat di bawah setiap sub-judul tahap tulis satu baris miring (diapit tanda bintang) dengan format: *10 menit · Pengalaman belajar: Berkesadaran* (isi pengalaman belajar dengan Berkesadaran, Memahami, Mengaplikasi, atau Merefleksi, boleh digabung dengan tanda panah). Lalu tulis bullet langkah konkret guru dan siswa. Kegiatan bernama ditulis **Nama kegiatan (10'):** uraian singkat. Beri rujukan kode LKPD di akhir butir yang memakainya, misalnya (LKPD 1, Aktivitas 1A). Total menit semua tahap dalam satu pertemuan harus sama dengan durasi pertemuan, dan Penutup berisi refleksi, simpulan, umpan balik, serta informasi pertemuan berikutnya.
+Tepat di bawah setiap sub-judul tahap tulis satu baris miring (diapit tanda bintang) dengan format: *10 menit · Pengalaman belajar: Berkesadaran* (isi pengalaman belajar dengan Berkesadaran, Memahami, Mengaplikasi, atau Merefleksi, boleh digabung dengan tanda panah). Lalu tulis bullet langkah konkret guru dan siswa. Kegiatan bernama ditulis **Nama kegiatan (10'):** uraian singkat. Beri rujukan kode LKPD di akhir butir yang memakainya, misalnya (LKPD 1, Aktivitas 1A). WAJIB: di bawah bullet setiap tahap (Pendahuluan, setiap tahap inti, dan Penutup, tanpa terlewat) tambahkan satu paragraf terpisah dengan awalan tebal persis **Konsep Pembelajaran Mendalam:** diikuti 1–2 kalimat yang menjelaskan bagaimana tahap itu mewujudkan prinsip Berkesadaran, Bermakna, dan/atau Menggembirakan, spesifik pada kegiatan dan topik tahap tersebut (bukan kalimat umum yang sama untuk semua tahap). Paragraf ini tidak dihitung sebagai bullet dan tidak mengubah alokasi menit. Total menit semua tahap dalam satu pertemuan harus sama dengan durasi pertemuan, dan Penutup berisi refleksi, simpulan, umpan balik, serta informasi pertemuan berikutnya.
 ## Asesmen Pembelajaran
 Tabel empat kolom dengan baris judul "Jenis | Teknik/bentuk | Instrumen dan bukti belajar | Waktu", tiga baris: Asesmen awal (diagnostik), Asesmen proses (formatif), Asesmen akhir (sumatif). Sebutkan rubrik dan lampiran yang dipakai (misalnya Rubrik 1, Lembar observasi Profil Lulusan).
 Satu paragraf miring tentang pendekatan asesmen (assessment for learning, as learning, of learning).
@@ -1452,6 +1452,14 @@ function fixPengalaman(root){
   });
 }
 function styleDoc(root,kind){
+  /* paragraf 'Konsep Pembelajaran Mendalam' di bawah tiap tahap: beri kotak penanda */
+  root.querySelectorAll('p').forEach(p=>{
+    const b=p.firstElementChild;
+    if(b&&b.tagName==='STRONG'&&/^konsep pembelajaran mendalam/i.test(b.textContent.trim())){
+      p.classList.add('konsep');
+      p.style.cssText+=';margin:4pt 0 8pt;padding:3pt 6pt;border-left:3px solid #1e3a8a;background:#eff6ff;color:#1e3a8a;page-break-inside:avoid';
+    }
+  });
   const ta=esc($('tahun').value.trim()), sm=esc($('semester').value.trim());
   const sub=kind==='lkpd' ? (ta?'T.A. '+ta:'') : [ta?'Tahun Ajaran '+ta:'', sm?'Semester '+sm:''].filter(Boolean).join(' · ');
   root.querySelectorAll('h1').forEach(h=>{
