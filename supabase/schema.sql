@@ -30,7 +30,8 @@ create table if not exists public.rpm_hasil (
   rpm_markdown      text,
   rpm_html          text,
   lkpd_html         text,
-  asesmen_html      text
+  asesmen_html      text,
+  lampiran_html     text
 );
 create index if not exists rpm_hasil_guru_idx on public.rpm_hasil (nama_guru, created_at desc);
 
@@ -82,3 +83,57 @@ create policy "ttd_read"   on storage.objects for select to anon, authenticated 
 create policy "ttd_insert" on storage.objects for insert to anon, authenticated with check (bucket_id = 'tanda-tangan');
 create policy "ttd_update" on storage.objects for update to anon, authenticated using (bucket_id = 'tanda-tangan') with check (bucket_id = 'tanda-tangan');
 create policy "ttd_delete" on storage.objects for delete to anon, authenticated using (bucket_id = 'tanda-tangan');
+
+
+-- =========================================================
+-- Tambahan fungsi (pemilih API key, draf, Lampiran). Aman dijalankan ulang.
+-- =========================================================
+
+-- 7) Kolom Lampiran (Glosarium dan Daftar Pustaka) untuk tabel yang sudah terlanjur dibuat
+alter table public.rpm_hasil add column if not exists lampiran_html text;
+
+-- 8) Riwayat pemakaian API key: satu baris per klik yang memakai AI
+create table if not exists public.api_key_usage (
+  id         bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  tanggal    date not null,
+  key_slot   text not null default 'auto',
+  aksi       text not null default '',
+  model      text not null default '',
+  nama_guru  text not null default ''
+);
+alter table public.api_key_usage add column if not exists key_dipakai text not null default '';
+create index if not exists api_key_usage_tanggal_idx on public.api_key_usage (tanggal);
+
+-- 9) Draf yang belum selesai (satu draf per guru per projek), bisa dilanjutkan di perangkat lain
+create table if not exists public.rpm_draft (
+  id           bigint generated always as identity primary key,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  nama_guru    text not null,
+  project_id   text not null,
+  project_nama text not null default '',
+  aksi         text not null default '',
+  draft_key    text not null default '',
+  prompt       text not null default '',
+  teks         text not null default '',
+  panjang      int  not null default 0,
+  done         jsonb not null default '{}'::jsonb,
+  form         jsonb not null default '{}'::jsonb,
+  rpm_markdown text,
+  model        text not null default '',
+  perangkat    text not null default ''
+);
+create unique index if not exists rpm_draft_guru_projek_uniq on public.rpm_draft (nama_guru, project_id);
+create index if not exists rpm_draft_guru_idx on public.rpm_draft (nama_guru, updated_at desc);
+
+alter table public.api_key_usage enable row level security;
+alter table public.rpm_draft     enable row level security;
+do $$
+declare t text;
+begin
+  foreach t in array array['api_key_usage','rpm_draft'] loop
+    execute format('drop policy if exists "anon_all" on public.%I', t);
+    execute format('create policy "anon_all" on public.%I for all to anon, authenticated using (true) with check (true)', t);
+  end loop;
+end $$;
